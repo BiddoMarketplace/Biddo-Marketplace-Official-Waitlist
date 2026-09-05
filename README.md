@@ -37,26 +37,30 @@ src/
 - `/admin` — founder login (not linked anywhere on the public site)
 - `/admin/dashboard` — waitlist dashboard (requires login)
 
-## Important: this is a frontend prototype
+## Data and auth
 
-`src/lib/waitlistStore.js` currently stores waitlist entries in the
-browser's `localStorage`, and the admin "login" is a single hardcoded
-password checked entirely on the client. **Neither of these is
-production-ready.** They exist so the full public/private flow —
-landing page → waitlist → confirmation, and separately, admin login →
-dashboard — can be prototyped and demoed end to end.
+`src/lib/waitlistStore.js` connects to a real Supabase project:
 
-Before real users touch this:
+- Waitlist signups are saved to a real Postgres table (`waitlist`), with a
+  unique constraint on `contact` to prevent duplicate signups.
+- Admin access (`/admin`, `/admin/dashboard`) is protected by real Supabase
+  Auth — the admin account is created directly in your Supabase project
+  under Authentication > Users, not stored anywhere in this codebase.
+- Row Level Security policies on the `waitlist` table allow anyone to
+  INSERT (join the waitlist), but only authenticated (logged-in) users to
+  SELECT (view the list) — see the setup guide for the exact SQL used.
 
-- Replace `waitlistStore.js`'s functions with calls to a real backend API
-  backed by a real database. Every function already returns a `Promise`,
-  so call sites in components won't need to change.
-- Put real authentication behind the admin routes — hashed credentials,
-  server-issued sessions or JWTs, HTTPS, rate limiting. Never ship a
-  client-side-only password check.
-- Add server-side validation of waitlist submissions (the client-side
-  validation in `WaitlistForm.jsx` is a UX nicety, not a security
-  boundary).
+You'll need a `.env` file (see `.env.example`) with:
+
+```
+VITE_SUPABASE_URL=your-supabase-project-url
+VITE_SUPABASE_ANON_KEY=your-supabase-publishable-key
+```
+
+**Never commit your real `.env` file to a public place.** `.env` is already
+listed in `.gitignore`, but if you're uploading files to GitHub manually
+through the website (rather than using `git` commands), double check you
+don't include it in the upload.
 
 ## Design notes
 

@@ -1,73 +1,68 @@
-// Waitlist data layer.
+// Waitlist data layer — backed by a real Supabase database, with real
+// Supabase Auth protecting admin access.
 //
-// This is a MOCK implementation backed by localStorage, built only for
-// prototyping the frontend experience. It is NOT a database and NOT secure
-// storage. Every function here is written as an async call that returns a
-// Promise, specifically so this file can be replaced later with real network
-// calls (e.g. fetch() to a backend API) without changing any component code
-// that depends on it.
-//
-// To go to production, replace the bodies of these functions with calls to
-// a real backend (REST/GraphQL) backed by a real database, and put real
-// authentication behind the admin functions. Do not ship this file as-is.
+// Every function still returns a Promise, so nothing in the rest of the app
+// (components, pages) needed to change when this moved from localStorage to
+// a real backend.
 
-const STORAGE_KEY = 'biddo_waitlist_v1'
-const SESSION_KEY = 'biddo_admin_session_v1'
-
-function readAll() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-function writeAll(entries) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
-}
-
-function simulateLatency(ms = 350) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+import { supabase } from './supabaseClient'
 
 /**
  * Add a person to the waitlist.
  * @param {{name: string, contactMethod: 'whatsapp'|'email', contact: string, interest: string}} entry
  */
 export async function addToWaitlist(entry) {
-  await simulateLatency()
-  const entries = readAll()
+  const contact = entry.contact.trim()
 
-  const normalizedContact = entry.contact.trim().toLowerCase()
-  const alreadyExists = entries.some(
-    (e) => e.contact.trim().toLowerCase() === normalizedContact,
-  )
-  if (alreadyExists) {
-    return { ok: true, duplicate: true }
-  }
-
-  const newEntry = {
-    id: `bd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  // Duplicate prevention happens at the database level (a unique constraint
+  // on the `contact` column), not by reading the table from the client —
+  // anonymous visitors are only allowed to INSERT, never SELECT, so a
+  // client-side duplicate check can't work here. See the setup guide for
+  // the one-time SQL command that adds this constraint.
+  const { error } = await supabase.from('waitlist').insert({
     name: entry.name.trim(),
-    contactMethod: entry.contactMethod,
-    contact: entry.contact.trim(),
+    contact_method: entry.contactMethod,
+    contact,
     interest: entry.interest,
-    createdAt: new Date().toISOString(),
+  })
+
+  if (error) {
+    // Postgres error code 23505 = unique constraint violation, i.e. this
+    // contact already signed up.
+    if (error.code === '23505') {
+      return { ok: true, duplicate: true }
+    }
+    return { ok: false, error: error.message }
   }
 
-  entries.push(newEntry)
-  writeAll(entries)
-  return { ok: true, duplicate: false, entry: newEntry }
+  return { ok: true, duplicate: false }
 }
 
-/** Get every waitlist entry. In production this must require authenticated,
- * authorized backend access — never expose this to the public client. */
+/** Get every waitlist entry. Only meant to be called from the admin
+ * dashboard, after the person has logged in. The "Anyone can join the
+ * waitlist" policy on the `waitlist` table only allows INSERT, not SELECT,
+ * for anonymous visitors — so reading the list without being logged in as
+ * an authenticated admin will simply return no rows once Part 4's policies
+ * are in place. */
 export async function getWaitlistEntries() {
-  await simulateLatency(200)
-  return readAll().sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )
+  const { data, error } = await supabase
+    .from('waitlist')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Failed to load waitlist entries:', error.message)
+    return []
+  }
+
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    contactMethod: row.contact_method,
+    contact: row.contact,
+    interest: row.interest,
+    createdAt: row.created_at,
+  }))
 }
 
 export async function getWaitlistStats() {
@@ -79,27 +74,26 @@ export async function getWaitlistStats() {
   return { total: entries.length, byInterest }
 }
 
-// --- Mock admin auth -------------------------------------------------
-// THIS IS NOT REAL SECURITY. It exists only to demonstrate the intended
-// public/private split in the prototype. A real deployment must replace
-// this with proper server-side authentication (hashed credentials, session
-// tokens or JWTs issued by a backend, HTTPS, rate limiting, etc.) — never
-// ship a client-side-only password check like this one.
-const DEMO_ADMIN_PASSWORD = 'biddo-founder-2026'
+// --- Admin auth, backed by real Supabase Auth --------------------------
+// This uses the admin user you created in Supabase (Authentication > Users),
+// not a password stored in this file. Supabase issues and manages the
+// actual login session, and the "Logged in users can view the waitlist"
+// policy on the `waitlist` table ensures only that authenticated session
+// can read the data.
 
-export async function adminLogin(password) {
-  await simulateLatency(400)
-  if (password === DEMO_ADMIN_PASSWORD) {
-    sessionStorage.setItem(SESSION_KEY, 'true')
-    return { ok: true }
+export async function adminLogin(email, password) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) {
+    return { ok: false, error: error.message }
   }
-  return { ok: false, error: 'Incorrect password.' }
+  return { ok: true }
 }
 
-export function isAdminAuthenticated() {
-  return sessionStorage.getItem(SESSION_KEY) === 'true'
+export async function isAdminAuthenticated() {
+  const { data } = await supabase.auth.getSession()
+  return Boolean(data.session)
 }
 
-export function adminLogout() {
-  sessionStorage.removeItem(SESSION_KEY)
+export async function adminLogout() {
+  await supabase.auth.signOut()
 }

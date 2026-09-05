@@ -14,11 +14,18 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isAdminAuthenticated()) {
-      navigate('/admin', { replace: true })
-      return
+    let active = true
+    isAdminAuthenticated().then((authed) => {
+      if (!active) return
+      if (!authed) {
+        navigate('/admin', { replace: true })
+        return
+      }
+      load()
+    })
+    return () => {
+      active = false
     }
-    load()
   }, [navigate])
 
   async function load() {
@@ -29,8 +36,8 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  function handleLogout() {
-    adminLogout()
+  async function handleLogout() {
+    await adminLogout()
     navigate('/admin')
   }
 
@@ -103,9 +110,8 @@ export default function AdminDashboard() {
         </div>
 
         <p className="mt-6 text-xs text-ink/40">
-          Prototype notice: data is stored locally in this browser only. Replace
-          with a real backend and database, and enforce authenticated,
-          authorized access, before handling real user data.
+          Access to this page is protected by Supabase Auth, and only your
+          admin account can read this data.
         </p>
       </main>
     </div>
