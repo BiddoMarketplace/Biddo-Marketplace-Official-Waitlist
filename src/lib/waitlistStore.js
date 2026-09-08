@@ -9,7 +9,7 @@ import { supabase } from './supabaseClient'
 
 /**
  * Add a person to the waitlist.
- * @param {{name: string, contactMethod: 'whatsapp'|'email', contact: string, interest: string}} entry
+ * @param {{name: string, contactMethod: 'whatsapp'|'email', contact: string, interest: string, referredBy?: string}} entry
  */
 export async function addToWaitlist(entry) {
   const contact = entry.contact.trim()
@@ -19,12 +19,17 @@ export async function addToWaitlist(entry) {
   // anonymous visitors are only allowed to INSERT, never SELECT, so a
   // client-side duplicate check can't work here. See the setup guide for
   // the one-time SQL command that adds this constraint.
-  const { error } = await supabase.from('waitlist').insert({
-    name: entry.name.trim(),
-    contact_method: entry.contactMethod,
-    contact,
-    interest: entry.interest,
-  })
+  const { data, error } = await supabase
+    .from('waitlist')
+    .insert({
+      name: entry.name.trim(),
+      contact_method: entry.contactMethod,
+      contact,
+      interest: entry.interest,
+      referred_by: entry.referredBy || null,
+    })
+    .select('referral_code')
+    .single()
 
   if (error) {
     // Postgres error code 23505 = unique constraint violation, i.e. this
@@ -35,7 +40,28 @@ export async function addToWaitlist(entry) {
     return { ok: false, error: error.message }
   }
 
-  return { ok: true, duplicate: false }
+  return { ok: true, duplicate: false, referralCode: data.referral_code }
+}
+
+/** Look up a person's own position in line, referral count, and the total
+ * waitlist size, using their referral code. This uses a narrow database
+ * function (get_my_waitlist_status) rather than reading the table directly,
+ * so it never exposes anyone else's personal details — just numbers. */
+export async function getMyWaitlistStatus(referralCode) {
+  const { data, error } = await supabase.rpc('get_my_waitlist_status', {
+    my_code: referralCode,
+  })
+
+  if (error || !data || data.length === 0) {
+    return null
+  }
+
+  const row = data[0]
+  return {
+    rank: Number(row.rank),
+    referralCount: Number(row.referral_count),
+    totalWaitlist: Number(row.total_waitlist),
+  }
 }
 
 /** Get every waitlist entry. Only meant to be called from the admin
@@ -62,6 +88,8 @@ export async function getWaitlistEntries() {
     contact: row.contact,
     interest: row.interest,
     createdAt: row.created_at,
+    referralCode: row.referral_code,
+    referredBy: row.referred_by,
   }))
 }
 

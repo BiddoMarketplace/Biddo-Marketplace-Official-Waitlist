@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { addToWaitlist } from '../lib/waitlistStore'
 
 const interests = [
@@ -12,6 +12,8 @@ const interests = [
 
 export default function WaitlistForm({ id }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const referredBy = searchParams.get('ref') || null
   const [contactMethod, setContactMethod] = useState('whatsapp')
   const [form, setForm] = useState({ name: '', contact: '', interest: '' })
   const [errors, setErrors] = useState({})
@@ -69,9 +71,15 @@ export default function WaitlistForm({ id }) {
         contactMethod,
         contact: form.contact,
         interest: form.interest,
+        referredBy,
       })
       if (result.ok) {
-        navigate('/welcome', { state: { name: form.name.trim().split(' ')[0] } })
+        navigate('/welcome', {
+          state: {
+            name: form.name.trim().split(' ')[0],
+            referralCode: result.referralCode,
+          },
+        })
       } else {
         setSubmitError('Something went wrong. Please try again.')
       }

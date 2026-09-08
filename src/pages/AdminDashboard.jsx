@@ -41,6 +41,20 @@ export default function AdminDashboard() {
     navigate('/admin')
   }
 
+  // Count how many people each referral code brought in, then show the
+  // top referrers — useful for spotting who's driving the most signups.
+  const referralCounts = entries.reduce((acc, e) => {
+    if (e.referredBy) acc[e.referredBy] = (acc[e.referredBy] || 0) + 1
+    return acc
+  }, {})
+  const topReferrers = Object.entries(referralCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+  const nameByReferralCode = entries.reduce((acc, e) => {
+    if (e.referralCode) acc[e.referralCode] = e.name
+    return acc
+  }, {})
+
   return (
     <div className="min-h-screen bg-paper">
       <header className="border-b border-biddo-line/70 bg-paper/90 backdrop-blur">
@@ -63,28 +77,50 @@ export default function AdminDashboard() {
           ))}
         </div>
 
+        {topReferrers.length > 0 && (
+          <div className="mt-10 rounded-2xl border border-biddo-line bg-white p-6">
+            <p className="font-display text-lg">Top referrers</p>
+            <div className="mt-4 space-y-2.5">
+              {topReferrers.map(([code, count], i) => (
+                <div
+                  key={code}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span className="text-ink/70">
+                    #{i + 1} {nameByReferralCode[code] || 'Unknown'}
+                  </span>
+                  <span className="font-medium text-ink">
+                    {count} {count === 1 ? 'referral' : 'referrals'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mt-10 overflow-hidden rounded-2xl border border-biddo-line">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="bg-biddo-sand/50 text-ink/60">
                 <tr>
                   <th className="px-5 py-3 font-medium">Name</th>
                   <th className="px-5 py-3 font-medium">Contact</th>
                   <th className="px-5 py-3 font-medium">Interest</th>
+                  <th className="px-5 py-3 font-medium">Referred by</th>
                   <th className="px-5 py-3 font-medium">Registered</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-biddo-line">
                 {loading && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-ink/50">
+                    <td colSpan={5} className="px-5 py-8 text-center text-ink/50">
                       Loading…
                     </td>
                   </tr>
                 )}
                 {!loading && entries.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-ink/50">
+                    <td colSpan={5} className="px-5 py-8 text-center text-ink/50">
                       No registrations yet.
                     </td>
                   </tr>
@@ -99,6 +135,11 @@ export default function AdminDashboard() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-ink/70">{entry.interest}</td>
+                    <td className="px-5 py-3.5 text-ink/50">
+                      {entry.referredBy
+                        ? nameByReferralCode[entry.referredBy] || 'Someone'
+                        : '—'}
+                    </td>
                     <td className="px-5 py-3.5 text-ink/50">
                       {new Date(entry.createdAt).toLocaleString('en-IN')}
                     </td>
