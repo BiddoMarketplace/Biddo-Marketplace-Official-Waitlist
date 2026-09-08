@@ -56,6 +56,27 @@ export async function addToWaitlist(entry) {
   return { ok: true, duplicate: false, referralCode }
 }
 
+/** Look up a person's own position in line, referral count, and the total
+ * waitlist size, using their referral code. This uses a narrow database
+ * function (get_my_waitlist_status) rather than reading the table directly,
+ * so it never exposes anyone else's personal details — just numbers. */
+export async function getMyWaitlistStatus(referralCode) {
+  const { data, error } = await supabase.rpc('get_my_waitlist_status', {
+    my_code: referralCode,
+  })
+
+  if (error || !data || data.length === 0) {
+    return null
+  }
+
+  const row = data[0]
+  return {
+    rank: Number(row.rank),
+    referralCount: Number(row.referral_count),
+    totalWaitlist: Number(row.total_waitlist),
+  }
+}
+
 /** Get every waitlist entry. Only meant to be called from the admin
  * dashboard, after the person has logged in. The "Anyone can join the
  * waitlist" policy on the `waitlist` table only allows INSERT, not SELECT,
@@ -92,27 +113,6 @@ export async function getWaitlistStats() {
     return acc
   }, {})
   return { total: entries.length, byInterest }
-}
-
-/** Look up a person's own position in line, referral count, and the total
- * waitlist size, using their referral code. This uses a narrow database
- * function (get_my_waitlist_status) rather than reading the table directly,
- * so it never exposes anyone else's personal details — just numbers. */
-export async function getMyWaitlistStatus(referralCode) {
-  const { data, error } = await supabase.rpc('get_my_waitlist_status', {
-    my_code: referralCode,
-  })
-
-  if (error || !data || data.length === 0) {
-    return null
-  }
-
-  const row = data[0]
-  return {
-    rank: Number(row.rank),
-    referralCount: Number(row.referral_count),
-    totalWaitlist: Number(row.total_waitlist),
-  }
 }
 
 // --- Admin auth, backed by real Supabase Auth --------------------------

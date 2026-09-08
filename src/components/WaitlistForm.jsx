@@ -41,8 +41,8 @@ export default function WaitlistForm({ id }) {
       next.contact = contactMethod === 'whatsapp' ? 'Enter your WhatsApp number.' : 'Enter your email.'
     } else if (contactMethod === 'whatsapp') {
       const digits = contact.replace(/[\s()-]/g, '')
-      if (!/^\+?\d{10,13}$/.test(digits)) {
-        next.contact = 'Enter a valid phone number.'
+      if (!/^\d{10}$/.test(digits)) {
+        next.contact = 'Enter a 10-digit phone number (no country code).'
       }
     } else {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
@@ -127,7 +127,11 @@ export default function WaitlistForm({ id }) {
             <div className="flex rounded-full bg-biddo-sand/60 p-1 text-xs font-medium">
               <button
                 type="button"
-                onClick={() => setContactMethod('whatsapp')}
+                onClick={() => {
+                  setContactMethod('whatsapp')
+                  setForm({ ...form, contact: '' })
+                  setErrors({ ...errors, contact: undefined })
+                }}
                 className={`rounded-full px-3 py-1.5 transition-colors ${
                   contactMethod === 'whatsapp' ? 'bg-ink text-paper' : 'text-ink/60'
                 }`}
@@ -137,7 +141,11 @@ export default function WaitlistForm({ id }) {
               </button>
               <button
                 type="button"
-                onClick={() => setContactMethod('email')}
+                onClick={() => {
+                  setContactMethod('email')
+                  setForm({ ...form, contact: '' })
+                  setErrors({ ...errors, contact: undefined })
+                }}
                 className={`rounded-full px-3 py-1.5 transition-colors ${
                   contactMethod === 'email' ? 'bg-ink text-paper' : 'text-ink/60'
                 }`}
@@ -152,9 +160,16 @@ export default function WaitlistForm({ id }) {
             type={contactMethod === 'whatsapp' ? 'tel' : 'email'}
             inputMode={contactMethod === 'whatsapp' ? 'tel' : 'email'}
             autoComplete={contactMethod === 'whatsapp' ? 'tel' : 'email'}
-            placeholder={contactMethod === 'whatsapp' ? '+91 98765 43210' : 'you@example.com'}
+            placeholder={contactMethod === 'whatsapp' ? '98765 43210' : 'you@example.com'}
+            maxLength={contactMethod === 'whatsapp' ? 10 : undefined}
             value={form.contact}
-            onChange={(e) => setForm({ ...form, contact: e.target.value })}
+            onChange={(e) => {
+              const value =
+                contactMethod === 'whatsapp'
+                  ? e.target.value.replace(/\D/g, '').slice(0, 10)
+                  : e.target.value
+              setForm({ ...form, contact: value })
+            }}
             className="mt-2 w-full rounded-xl border border-biddo-line bg-white px-4 py-3 text-ink outline-none transition-colors focus:border-ink/40"
             aria-invalid={Boolean(errors.contact)}
             aria-describedby={errors.contact ? 'contact-error' : undefined}
@@ -162,6 +177,11 @@ export default function WaitlistForm({ id }) {
           {errors.contact && (
             <p id="contact-error" className="mt-1.5 animate-fade-slide-in text-sm text-biddo-crimson">
               {errors.contact}
+            </p>
+          )}
+          {!errors.contact && contactMethod === 'whatsapp' && (
+            <p className="mt-1.5 text-xs text-ink/40">
+              10 digits, no country code (e.g. 98765 43210)
             </p>
           )}
         </div>

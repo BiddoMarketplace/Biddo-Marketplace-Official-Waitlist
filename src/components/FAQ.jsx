@@ -78,6 +78,20 @@ export default function FAQ() {
             )
           })}
         </div>
+
+        <p
+          className={`mt-10 text-sm text-ink/55 ${visible ? 'animate-rise-in' : 'opacity-0'}`}
+          style={{ animationDelay: visible ? `${0.08 * faqs.length}s` : undefined }}
+        >
+          Still have a question?{' '}
+          <a
+            href="mailto:biddomarketplace@gmail.com"
+            className="font-medium text-ink underline decoration-biddo-line underline-offset-4 transition-colors hover:text-biddo-crimson"
+          >
+            Email us
+          </a>{' '}
+          — we read everything.
+        </p>
       </div>
     </section>
   )
